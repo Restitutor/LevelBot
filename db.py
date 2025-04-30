@@ -85,7 +85,7 @@ async def leaderboard(limit: int = 10) -> dict[str, int]:
         async with (
             aiosqlite.connect(DATABASE) as db,
             db.execute(
-                "SELECT User, xp FROM user_xp order by xp limit ?",
+                "SELECT User, xp FROM user_xp order by xp desc limit ?",
                 (limit,),
             ) as cursor,
         ):

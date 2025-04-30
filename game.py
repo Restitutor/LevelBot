@@ -62,7 +62,7 @@ class GameState:
         if user_id in self.exclude.values:
             return False
 
-        if self.last_msg.get(user_id, 0) < time.time() - MINUTE_TIME:
+        if self.last_msg.get(user_id, 0) < time.time() - MINUTE_TIME * 60:
             self.last_msg[user_id] = round(time.time())
             return True
 

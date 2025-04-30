@@ -11,12 +11,14 @@ import db
 from config import TOKEN
 from game import GameState
 from utils import logger
+import math
 
 # Bot setup
 bot = discord.Bot(
     allowed_mentions=discord.AllowedMentions.none(),
     intents=discord.Intents.none()
     | discord.Intents.message_content
+    | discord.Intents.guilds
     | discord.Intents.guild_messages,
 )
 
@@ -75,7 +77,7 @@ async def exclude(ctx) -> None:
 
     """
     try:
-        ctx.respond(game_state.exclude.toggle(ctx.user.id))
+        await ctx.respond(game_state.exclude.toggle(ctx.user.id))
     except Exception as e:
         logger.error(f"Error executing inventory command: {e}")
         await ctx.respond("An error occurred while retrieving the xp.")
@@ -113,12 +115,13 @@ async def leaderboard(ctx) -> None:
         output = ""
         for k, v in result.items():
             if k not in game_state.exclude.values:
-                output += f"<@{k}>: {v}"
+                level = math.floor((max(v, 0)**(1/3)))
+                output += f"<@{k}>: {level}\n"
 
         if output:
-            ctx.respond(output)
+            await ctx.respond(output.strip())
         else:
-            ctx.respond("No users found!")
+            await ctx.respond("No users found!")
     except Exception as e:
         logger.error(f"Error executing inventory command: {e}")
         await ctx.respond("An error occurred while retrieving the xp.")
