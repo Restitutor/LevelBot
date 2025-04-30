@@ -68,7 +68,7 @@ async def get_xp(user: int) -> int | None:
                 (user,),
             ) as cursor,
         ):
-            return await cursor.fetchall()[0][0]
+            return (await cursor.fetchall())[0][0]
     except Exception as e:
         logger.error(f"Error reading xp from user: {e}")
         return None

@@ -3,6 +3,7 @@
 Integrates all components and handles Discord events.
 """
 
+import math
 import string
 
 import discord
@@ -11,7 +12,6 @@ import db
 from config import TOKEN
 from game import GameState
 from utils import logger
-import math
 
 # Bot setup
 bot = discord.Bot(
@@ -23,6 +23,10 @@ bot = discord.Bot(
 )
 
 lowercase_letters = set(string.ascii_lowercase)
+
+
+def get_level(xp: int) -> int:
+    return math.floor(max(xp, 0) ** (1 / 3))
 
 
 @bot.event
@@ -85,7 +89,7 @@ async def exclude(ctx) -> None:
 
 @bot.command()
 async def xp(ctx, user: discord.Option(discord.SlashCommandOptionType.user)) -> None:
-    """Slash command to view a user's inventory.
+    """Slash command to view a user's level and xp.
 
     Args:
         ctx: Command context
@@ -95,8 +99,12 @@ async def xp(ctx, user: discord.Option(discord.SlashCommandOptionType.user)) -> 
     try:
         if user.bot:
             await ctx.respond("That's a bot.")
+        elif user.id in game_state.exclude.values:
+            await ctx.respond(f"{user.display_name} opted out of the game.")
         else:
-            await ctx.respond(await db.get_xp(user.id))
+            xp = await db.get_xp(user.id)
+            level = get_level(xp)
+            await ctx.respond(f"<@{user.id}> is level {level} ({xp} xp).")
     except Exception as e:
         logger.error(f"Error executing inventory command: {e}")
         await ctx.respond("An error occurred while retrieving the xp.")
@@ -113,10 +121,10 @@ async def leaderboard(ctx) -> None:
     try:
         result = await db.leaderboard()
         output = ""
-        for k, v in result.items():
-            if k not in game_state.exclude.values:
-                level = math.floor((max(v, 0)**(1/3)))
-                output += f"<@{k}>: {level}\n"
+        for user, xp in result.items():
+            if user not in game_state.exclude.values:
+                level = get_xp(xp)
+                output += f"<@{user}>: {level}\n"
 
         if output:
             await ctx.respond(output.strip())
