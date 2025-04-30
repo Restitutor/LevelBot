@@ -1,0 +1,98 @@
+"""Database operations for the Discord math catch bot.
+Handles xp management and database interactions.
+"""
+
+import aiosqlite
+
+from config import DATABASE
+from utils import logger
+
+
+async def create_table() -> None:
+    """Creates the user_xp table if it doesn't exist."""
+    try:
+        async with aiosqlite.connect(DATABASE) as db:
+            await db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS user_xp (
+                    User INTEGER,
+                    xp INTEGER,
+                    PRIMARY KEY (User)
+                )
+                """,
+            )
+            await db.commit()
+        logger.info(f"Successfully created/verified user_xp table in {DATABASE}")
+    except Exception as e:
+        logger.error(f"Error creating database table: {e}")
+        raise
+
+
+async def add_xp(user: int, quantity: int) -> None:
+    """Adds xp to a user or increases if it already exists.
+
+    Args:
+        user: User ID
+        quantity: xp to add
+
+    """
+    try:
+        async with aiosqlite.connect(DATABASE) as db:
+            await db.execute(
+                """
+                INSERT INTO user_xp (User, xp)
+                VALUES (?, ?)
+                ON CONFLICT(User) DO UPDATE SET xp = xp + excluded.xp
+                """,
+                (user, quantity),
+            )
+            await db.commit()
+        logger.info(f"Added {quantity} xp to user {user}")
+    except Exception as e:
+        logger.error(f"Error adding item to inventory: {e}")
+        raise
+
+
+async def get_xp(user: int) -> int | None:
+    """Shows xp for user.
+
+    Args:
+        user: User ID
+
+    """
+    try:
+        async with (
+            aiosqlite.connect(DATABASE) as db,
+            db.execute(
+                "SELECT xp FROM user_xp WHERE User = ?",
+                (user,),
+            ) as cursor,
+        ):
+            return await cursor.fetchall()[0][0]
+    except Exception as e:
+        logger.error(f"Error reading xp from user: {e}")
+        return None
+
+
+async def leaderboard(limit: int = 10) -> dict[str, int]:
+    """Lists top 10 by xp.
+
+    Returns:
+        Dictionary mapping user IDs to quantities
+
+    """
+    try:
+        async with (
+            aiosqlite.connect(DATABASE) as db,
+            db.execute(
+                "SELECT User, xp FROM user_xp order by xp limit ?",
+                (limit,),
+            ) as cursor,
+        ):
+            rows = await cursor.fetchall()
+            result = {row[0]: row[1] for row in rows}
+        logger.info(f"Retrieved {len(result)} results.")
+        return result
+    except Exception as e:
+        logger.error(f"Error listing items from inventory: {e}")
+        raise
