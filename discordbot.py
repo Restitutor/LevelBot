@@ -63,6 +63,10 @@ async def on_text_message(message) -> None:
     if len(set(message.clean_content.lower()).intersection(lowercase_letters)) <= 1:
         return
 
+    if "!leaderboard" in message.clean_content:
+        await message.reply(await leaderboard_info())
+        return
+
     try:
         user = message.author.id
         if game_state.can_xp(user):
@@ -82,6 +86,26 @@ async def exclude(ctx) -> None:
     """
     try:
         await ctx.respond(game_state.exclude.toggle(ctx.user.id))
+    except Exception as e:
+        logger.error(f"Error executing inventory command: {e}")
+        await ctx.respond("An error occurred while retrieving the xp.")
+
+
+@bot.command()
+async def clearxp(ctx) -> None:
+    """Slash command to purge user xp.
+
+    Args:
+        ctx: Command context
+
+    """
+    try:
+        xp = await db.get_xp(ctx.user.id)
+        if xp is None:
+            xp = 0
+
+        await db.clear_xp(ctx.user.id)
+        await ctx.respond(f"Cleared {xp} xp.")
     except Exception as e:
         logger.error(f"Error executing inventory command: {e}")
         await ctx.respond("An error occurred while retrieving the xp.")
@@ -118,21 +142,24 @@ async def leaderboard(ctx) -> None:
         ctx: Command context
 
     """
+    await ctx.respond(await leaderboard_info())
+
+
+async def leaderboard_info() -> str:
     try:
         result = await db.leaderboard()
         output = ""
         for user, xp in result.items():
             if user not in game_state.exclude.values:
-                level = get_xp(xp)
+                level = get_level(xp)
                 output += f"<@{user}>: {level}\n"
 
         if output:
-            await ctx.respond(output.strip())
-        else:
-            await ctx.respond("No users found!")
+            return output.strip()
+        return "No users found!"
     except Exception as e:
         logger.error(f"Error executing inventory command: {e}")
-        await ctx.respond("An error occurred while retrieving the xp.")
+        return "An error occurred while retrieving the xp."
 
 
 if __name__ == "__main__":

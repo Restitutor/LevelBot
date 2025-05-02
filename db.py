@@ -28,6 +28,26 @@ async def create_table() -> None:
         raise
 
 
+async def clear(user: int) -> None:
+    """Removes all data about user from user_xp.
+
+    Args:
+        user: User ID
+
+    """
+    try:
+        async with aiosqlite.connect(DATABASE) as db:
+            await db.execute(
+                "delete from user_xp where User = ?",
+                (user,),
+            )
+            await db.commit()
+        logger.info(f"Purged user {user}")
+    except Exception as e:
+        logger.error(f"Error adding item to inventory: {e}")
+        raise
+
+
 async def add_xp(user: int, quantity: int) -> None:
     """Adds xp to a user or increases if it already exists.
 
