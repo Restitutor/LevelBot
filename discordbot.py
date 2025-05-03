@@ -26,7 +26,7 @@ lowercase_letters = set(string.ascii_lowercase)
 
 
 def get_level(xp: int) -> int:
-    return math.floor(max(xp, 0) ** (1 / 3))
+    return math.floor(max(xp, 0) ** (1 / 2.5))
 
 
 @bot.event
@@ -70,10 +70,13 @@ async def on_text_message(message) -> None:
     try:
         user = message.author.id
         if game_state.can_xp(user):
-            await game_state.add_xp(user)
+            old_xp, xp = await game_state.add_xp(user)
+            level = get_level(xp)
+            if level != get_level(old_xp):
+                message.reply(f"You are now {level}!")
 
     except Exception as e:
-        logger.error(f"Error processing message: {e}")
+        logger.exception(f"Error processing message: {e}")
 
 
 @bot.command()
@@ -102,10 +105,10 @@ async def clearxp(ctx) -> None:
     try:
         xp = await db.get_xp(ctx.user.id)
         if xp is None:
-            xp = 0
-
-        await db.clear_xp(ctx.user.id)
-        await ctx.respond(f"Cleared {xp} xp.")
+            await ctx.respond("You had no xp.")
+        else:
+            await db.clear_xp(ctx.user.id)
+            await ctx.respond(f"Cleared {xp} xp.")
     except Exception as e:
         logger.error(f"Error executing inventory command: {e}")
         await ctx.respond("An error occurred while retrieving the xp.")

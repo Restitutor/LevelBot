@@ -28,27 +28,29 @@ async def create_table() -> None:
         raise
 
 
-async def clear(user: int) -> None:
+async def clear_xp(user: int) -> bool:
     """Removes all data about user from user_xp.
 
     Args:
         user: User ID
 
+    Returns:
+        Whether the user was removed.
+
     """
     try:
-        async with aiosqlite.connect(DATABASE) as db:
-            await db.execute(
-                "delete from user_xp where User = ?",
-                (user,),
-            )
+        async with aiosqlite.connect(DATABASE) as db, db.execute(
+            "delete from user_xp where User = ?",
+            (user,),
+        ) as cursor:
             await db.commit()
-        logger.info(f"Purged user {user}")
+            return cursor.rowcount > 0
     except Exception as e:
         logger.error(f"Error adding item to inventory: {e}")
         raise
 
 
-async def add_xp(user: int, quantity: int) -> None:
+async def add_xp(user: int, quantity: int) -> tuple[int, int]:
     """Adds xp to a user or increases if it already exists.
 
     Args:
@@ -58,15 +60,19 @@ async def add_xp(user: int, quantity: int) -> None:
     """
     try:
         async with aiosqlite.connect(DATABASE) as db:
-            await db.execute(
+            async with db.execute(
                 """
                 INSERT INTO user_xp (User, xp)
                 VALUES (?, ?)
                 ON CONFLICT(User) DO UPDATE SET xp = xp + excluded.xp
+                returning xp
                 """,
                 (user, quantity),
-            )
+            ) as cursor:
+                row = await cursor.fetchone()
+                xp = row[0]
             await db.commit()
+            return xp - quantity, xp
         logger.info(f"Added {quantity} xp to user {user}")
     except Exception as e:
         logger.error(f"Error adding item to inventory: {e}")

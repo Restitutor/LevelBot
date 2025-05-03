@@ -68,7 +68,7 @@ class GameState:
 
         return False
 
-    async def add_xp(self, user_id: int, quantity: int = 1) -> None:
+    async def add_xp(self, user_id: int, quantity: int = 1) -> tuple[int, int]:
         """Gives user more xp.
 
         Args:
@@ -76,7 +76,7 @@ class GameState:
             quantity: Amount to give
 
         Returns:
-            Tuple of (message, caught)
+            Int of new xp
 
         """
-        await db.add_xp(user_id, quantity)
+        return await db.add_xp(user_id, quantity)
