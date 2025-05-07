@@ -3,7 +3,6 @@
 Integrates all components and handles Discord events.
 """
 
-import math
 import string
 
 import discord
@@ -23,10 +22,6 @@ bot = discord.Bot(
 )
 
 lowercase_letters = set(string.ascii_lowercase)
-
-
-def get_level(xp: int) -> int:
-    return math.floor(max(xp, 0) ** (1 / 2.5))
 
 
 @bot.event
@@ -64,16 +59,17 @@ async def on_text_message(message) -> None:
         return
 
     if "!leaderboard" in message.clean_content:
-        await message.reply(await leaderboard_info())
+        await message.reply(await game_state.leaderboard_info())
+        return
+
+    if "!xp" in message.clean_content:
+        await message.reply(await xp_info(message.author))
         return
 
     try:
-        user = message.author.id
-        if game_state.can_xp(user):
-            old_xp, xp = await game_state.add_xp(user)
-            level = get_level(xp)
-            if level != get_level(old_xp):
-                message.reply(f"You are now {level}!")
+        msg = await game_state.on_message(message.author.id)
+        if msg is not None:
+            await message.reply(msg)
 
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
@@ -87,11 +83,7 @@ async def exclude(ctx) -> None:
         ctx: Command context
 
     """
-    try:
-        await ctx.respond(game_state.exclude.toggle(ctx.user.id))
-    except Exception as e:
-        logger.error(f"Error executing inventory command: {e}")
-        await ctx.respond("An error occurred while retrieving the xp.")
+    await ctx.respond(game_state.exclude_user(ctx.user.id))
 
 
 @bot.command()
@@ -123,18 +115,19 @@ async def xp(ctx, user: discord.Option(discord.SlashCommandOptionType.user)) -> 
         user: User to view inventory for
 
     """
+    await ctx.respond(await xp_info(user))
+
+
+async def xp_info(user: discord.User) -> str:
     try:
         if user.bot:
-            await ctx.respond("That's a bot.")
-        elif user.id in game_state.exclude.values:
-            await ctx.respond(f"{user.display_name} opted out of the game.")
-        else:
-            xp = await db.get_xp(user.id)
-            level = get_level(xp)
-            await ctx.respond(f"<@{user.id}> is level {level} ({xp} xp).")
+            return "That's a bot."
+        if user.id in game_state.exclude.values:
+            return f"{user.display_name} opted out of the game."
+        return await game_state.xp_status(user.id)
     except Exception as e:
         logger.error(f"Error executing inventory command: {e}")
-        await ctx.respond("An error occurred while retrieving the xp.")
+        return "An error occurred while retrieving the xp."
 
 
 @bot.command()
@@ -146,23 +139,6 @@ async def leaderboard(ctx) -> None:
 
     """
     await ctx.respond(await leaderboard_info())
-
-
-async def leaderboard_info() -> str:
-    try:
-        result = await db.leaderboard()
-        output = ""
-        for user, xp in result.items():
-            if user not in game_state.exclude.values:
-                level = get_level(xp)
-                output += f"<@{user}>: {level}\n"
-
-        if output:
-            return output.strip()
-        return "No users found!"
-    except Exception as e:
-        logger.error(f"Error executing inventory command: {e}")
-        return "An error occurred while retrieving the xp."
 
 
 if __name__ == "__main__":

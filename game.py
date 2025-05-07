@@ -1,11 +1,25 @@
 """Handles exclusion list."""
 
+import math
 import pathlib
 import time
 
 import db
 from config import MINUTE_TIME
 from utils import logger
+
+
+def get_raw_level(xp: int) -> int:
+    return max(xp, 0) ** (1 / 2.5)
+
+
+def get_level(xp: int) -> int:
+    return math.floor(get_raw_level(xp))
+
+
+def to_next_level(xp: int) -> int:
+    next = math.ceil(get_raw_level(xp) + 1e-10)
+    return round(next**2.5 - xp)
 
 
 class PersistentExclude:
@@ -80,3 +94,45 @@ class GameState:
 
         """
         return await db.add_xp(user_id, quantity)
+
+    async def xp_status(self, user: int) -> str:
+        xp = await db.get_xp(user)
+        level = get_level(xp)
+        next = to_next_level(xp)
+        return f"<@{user}> is level {level} ({xp} xp). Get {next} more xp to get level {level + 1}."
+
+    async def on_message(self, user: int) -> str | None:
+        if self.can_xp(user):
+            old_xp, xp = await self.add_xp(user)
+            level = get_level(xp)
+            if level != get_level(old_xp):
+                return f"You are now level {level}!"
+        return None
+
+    def exclude_user(self, user: int) -> str:
+        try:
+            return self.exclude.toggle(user)
+        except Exception as e:
+            logger.error(f"Error executing inventory command: {e}")
+            return "An error occurred while retrieving the xp."
+
+    async def get_leaderboard(self) -> str:
+        result = await db.leaderboard()
+        output = ""
+        pos = 0
+        for user, xp in result.items():
+            if user not in self.exclude.values:
+                pos += 1
+                level = get_level(xp)
+                output += f"**#{pos}** <@{user}>: {level}\n"
+
+        if output:
+            return output.strip()
+        return "No users found!"
+
+    async def leaderboard_info(self) -> str:
+        try:
+            return await self.get_leaderboard()
+        except Exception as e:
+            logger.error(f"Error executing inventory command: {e}")
+            return "An error occurred while retrieving the xp."

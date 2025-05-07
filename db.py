@@ -39,10 +39,13 @@ async def clear_xp(user: int) -> bool:
 
     """
     try:
-        async with aiosqlite.connect(DATABASE) as db, db.execute(
-            "delete from user_xp where User = ?",
-            (user,),
-        ) as cursor:
+        async with (
+            aiosqlite.connect(DATABASE) as db,
+            db.execute(
+                "delete from user_xp where User = ?",
+                (user,),
+            ) as cursor,
+        ):
             await db.commit()
             return cursor.rowcount > 0
     except Exception as e:
