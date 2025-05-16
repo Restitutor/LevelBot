@@ -1,4 +1,4 @@
-"""Handles exclusion list."""
+"""Handles game logic."""
 
 import math
 import pathlib
@@ -63,24 +63,28 @@ class GameState:
         self.last_msg: dict[int, int] = {}
         logger.info("Initialized game state.")
 
-    def can_xp(self, user_id: int) -> bool:
+    def addable_xp(self, user_id: int) -> int:
         """Checks if a user can get xp.
 
         Args:
             user_id: Discord user ID
 
         Returns:
-            True if the user can get xp, False otherwise
+            Amount of xp the user will gain.
 
         """
         if user_id in self.exclude.values:
-            return False
+            return 0
 
-        if self.last_msg.get(user_id, 0) < time.time() - MINUTE_TIME * 60:
+        seconds_ago = time.time() - self.last_msg.get(user_id, 0)
+        if seconds_ago > MINUTE_TIME * 60:
             self.last_msg[user_id] = round(time.time())
-            return True
+            if seconds_ago > 6 * 3600:
+                return 4
 
-        return False
+            return 1
+
+        return 0
 
     async def add_xp(self, user_id: int, quantity: int = 1) -> tuple[int, int]:
         """Gives user more xp.
@@ -90,7 +94,7 @@ class GameState:
             quantity: Amount to give
 
         Returns:
-            Int of new xp
+            Tuple int of old and new xp
 
         """
         return await db.add_xp(user_id, quantity)
@@ -102,11 +106,13 @@ class GameState:
         return f"<@{user}> is level {level} ({xp} xp). Get {next} more xp to get level {level + 1}."
 
     async def on_message(self, user: int) -> str | None:
-        if self.can_xp(user):
-            old_xp, xp = await self.add_xp(user)
+        addable = self.addable_xp(user)
+        if addable:
+            old_xp, xp = await self.add_xp(user, addable)
             level = get_level(xp)
             if level != get_level(old_xp):
-                return f"You are now level {level}!"
+                return await self.xp_status(user)
+
         return None
 
     def exclude_user(self, user: int) -> str:
@@ -118,17 +124,25 @@ class GameState:
 
     async def get_leaderboard(self) -> str:
         result = await db.leaderboard()
-        output = ""
+        if not result:
+            return "No users found!"
+
+        output = "## Leaderboard\n"
+        emojis = ["🥇", "🥈", "🥉", "⌨️"]
+
         pos = 0
         for user, xp in result.items():
             if user not in self.exclude.values:
-                pos += 1
-                level = get_level(xp)
-                output += f"**#{pos}** <@{user}>: {level}\n"
+                try:
+                    prefix = emojis[pos]
+                except IndexError:
+                    prefix = f"**#{pos + 1}**"
 
-        if output:
-            return output.strip()
-        return "No users found!"
+                level = get_level(xp)
+                output += f"{prefix} <@{user}>: {level}\n"
+                pos += 1
+
+        return output.rstrip()
 
     async def leaderboard_info(self) -> str:
         try:

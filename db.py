@@ -75,14 +75,14 @@ async def add_xp(user: int, quantity: int) -> tuple[int, int]:
                 row = await cursor.fetchone()
                 xp = row[0]
             await db.commit()
+            logger.debug(f"Added {quantity} xp to user {user}")
             return xp - quantity, xp
-        logger.info(f"Added {quantity} xp to user {user}")
     except Exception as e:
         logger.error(f"Error adding item to inventory: {e}")
         raise
 
 
-async def get_xp(user: int) -> int | None:
+async def get_xp(user: int) -> int:
     """Shows xp for user.
 
     Args:
@@ -100,7 +100,7 @@ async def get_xp(user: int) -> int | None:
             return (await cursor.fetchall())[0][0]
     except Exception as e:
         logger.error(f"Error reading xp from user: {e}")
-        return None
+        raise
 
 
 async def leaderboard(limit: int = 10) -> dict[str, int]:
@@ -120,7 +120,7 @@ async def leaderboard(limit: int = 10) -> dict[str, int]:
         ):
             rows = await cursor.fetchall()
             result = {row[0]: row[1] for row in rows}
-        logger.info(f"Retrieved {len(result)} results.")
+        logger.debug(f"Retrieved {len(result)} results.")
         return result
     except Exception as e:
         logger.error(f"Error listing items from inventory: {e}")
